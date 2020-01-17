@@ -7,7 +7,7 @@ const defaultDateRange = {amount:5, type:"days"};
 client.on('ready', () => {   
     console.log(`Logged in as ${client.user.tag}!`); 
 });
-client.on('message', msg => {  
+client.on('message', msg => {
     if(msg.author.bot) return;
     if (msg.author === client.user) return;
     if (msg.content.startsWith("!")) {
@@ -306,4 +306,4 @@ const sleep = ms => {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-client.login('NjM5ODUwNzk5MzY2OTMwNDUy.XcLEYA.vTHKtwZM8MnN_SUnnjAnilgBI1E');
+client.login('dummy');
