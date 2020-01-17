@@ -1,20 +1,21 @@
 const Discord = require('discord.js'); 
-const moment = require("moment")
+const moment = require("moment");
+const async = require('async');
 const client = new Discord.Client();  
 const defaultDateRange = {amount:5, type:"days"};
 
 client.on('ready', () => {   
     console.log(`Logged in as ${client.user.tag}!`); 
 });
-client.on('message', async msg => {  
+client.on('message', msg => {  
     if(msg.author.bot) return;
-    if (msg.author == client.user) return;
+    if (msg.author === client.user) return;
     if (msg.content.startsWith("!")) {
         processCommand(msg)
     }
 });
 
-async function processCommand(receivedMessage) {
+function processCommand(receivedMessage) {
     let fullCommand = receivedMessage.content.substr(1) // Remove the leading exclamation mark
     let splitCommand = fullCommand.split(" ") // Split the message up in to pieces for each space
     let primaryCommand = splitCommand[0] // The first word directly after the exclamation is the command
@@ -23,11 +24,11 @@ async function processCommand(receivedMessage) {
     console.log("Command received: " + primaryCommand)
     console.log("Arguments: " + arguments) // There may not be any arguments
 
-    if (primaryCommand == "help") {
+    if (primaryCommand === "help") {
         helpCommand(arguments, receivedMessage)
-    } else if (primaryCommand == "status") {
+    } else if (primaryCommand === "status") {
         statusCommand(arguments, receivedMessage)
-    } else if (primaryCommand == "statusAll") {
+    } else if (primaryCommand === "statusAll") {
         statusAllCommand(arguments, receivedMessage)
     } else {
         receivedMessage.channel.send("I don't understand the command. Try `!help` or `!status`")
@@ -49,7 +50,7 @@ function statusCommand(arguments, receivedMessage) {
     console.log(`Received message ${receivedMessage}`); 
     console.log(`Guild ${receivedMessage.guild}`); 
 
-    if (arguments.length == 1) {
+    if (arguments.length === 1) {
     	let user = client.users.find(user => user.username === arguments[0]);
 		
 		receivedMessage.guild.fetchMember(user).then(function(member){
@@ -72,7 +73,7 @@ function statusCommand(arguments, receivedMessage) {
 	    	return true;
 		}).catch(console.error);
 
-    } else if (arguments.length == 2) {
+    } else if (arguments.length === 2) {
         receivedMessage.channel.send(" wtf Not enough values to multiply. Try `!multiply 2 4 10` or `!multiply 5.2 7`")
         return
     }
@@ -80,15 +81,15 @@ function statusCommand(arguments, receivedMessage) {
     // receivedMessage.channel.send("The product of " + arguments + " multiplied together is: " + product.toString())
 }
 
-async function statusAllCommand(arguments, receivedMessage) {
+function statusAllCommand(arguments, receivedMessage) {
     console.log(`statusAll ------ `+JSON.stringify(defaultDateRange)); 
     console.log(`Received message ${receivedMessage}`); 
-    let guild = receivedMessage.guild
+    let { guild } = receivedMessage
     console.log(`Guild ${guild}`); 
 
     let threshold = null;
 
-    if (arguments.length == 1) {
+    if (arguments.length === 1) {
     	let argument = arguments[0].split('"').join('');
         let timeLimit = argument.split(" ");
         if(timeLimit.length != 2){
@@ -126,10 +127,10 @@ async function statusAllCommand(arguments, receivedMessage) {
 	        }else{//before bot activity
 	        	console.log(`--- combing channels for member ${member.user.username}`);
 	        	//let isUseractive = 
-	        	combChannels(member, guild, threshold).then(result =>{
+	        	let result = combChannels(member, guild, threshold).then(result =>{
 	        		if(result === false){
 	        			assignRole(member,inactiveRole);
-	        			console.log(`role ${inactiveRole.name} added successfully after combing channels`); 
+	        			console.log(`role ${inactiveRole.name} added successfully after combing channels to ${member.user.username}`); 
 		        	}else{
 		        		//TODO activate member if inactive
 			        	//TODO set all members active
@@ -163,10 +164,10 @@ function findUserLastMessageInBatch(member, messages, threshold){
   	let filteredMessagesByDate = messages.filter(m => moment(m.createdAt).isAfter(threshold));
 
   	let numMessages = filteredMessagesByDate.size;
-  	console.log(`------- per user ${numMessages} messages`);
+  	console.log(`------- before threshold ${numMessages} messages`);
 
   	if(numMessages > 0){
-  		
+  		console.log(`------- check per user messages`);
   		let filteredMessages = filteredMessagesByDate.filter(m=> m.author === member.user);
   		if(filteredMessages.size > 0){
 			filteredMessages.forEach((m) => {
@@ -176,9 +177,15 @@ function findUserLastMessageInBatch(member, messages, threshold){
 	  		return true; //user is active
   		}else{
   			//not found messages of member, keep looking farther
-  			console.log(`------- look further back`);
-  			let earliestMessage = messages.last(1);
-  			return earliestMessage;
+  			if (numMessages < 100){
+  				console.log(`------- no messages found, there are less than 100 messages in batch `);
+  				return false;
+  			}else{
+				console.log(`------- no messages found, look further back`);
+	  			let earliestMessage = messages.last(1);
+	  			return earliestMessage;
+  			}
+  			
   		}
   	}else{
   		console.log(`------- after date`);
@@ -196,28 +203,32 @@ async function checkChannelForUserLastMessage(member, channel, threshold, lastMe
 		if(!lastMessageOffset){ //initial call per channel
 			console.log(`------- first pass before waiting - channel ${channel.name} user ${member.user.username}`);
 			let messages = await channel.fetchMessages({limit: 100});
+			sleep(1000);
 			console.log(`------- first pass dud ut waut? ${messages.size} - channel ${channel.name} user ${member.user.username}`);
 	  		if(messages.size > 0){ //check for no messages in channel
 	  			console.log(`-- before calling find in batch - channel ${channel.name} user ${member.user.username}`);
-	  			return findUserLastMessageInBatch(member, messages, threshold);	
+	  			result = findUserLastMessageInBatch(member, messages, threshold);	
+	  			console.log(`-- after calling find in batch - result ${result} channel ${channel.name} user ${member.user.username}`);
 	  		}else{
 	  			console.log(`-- first pass no messages in channel - channel ${channel.name} user ${member.user.username}`);
-	  			return false;
+	  			result =  false;
 	  		}
 		}else{
 			console.log(`------- before awaiting with offset - channel ${channel.name} user ${member.user.username}`);
 			let messages = await channel.fetchMessages({limit: 100, before: lastMessageOffset.id});
+			sleep(1000);
 			console.log(`------- awaited? with offset ${messages.size} - channel ${channel.name} user ${member.user.username}`);
 	  		if(messages.size > 0){ //check for no messages in channel
 	  			console.log(`-- before calling find in batch from offset - channel ${channel.name} user ${member.user.username}`);
-	  			return findUserLastMessageInBatch(member, messages, threshold);	
+	  			result =  findUserLastMessageInBatch(member, messages, threshold);	
+	  			console.log(`-- after calling find in batch - result ${result} channel ${channel.name} user ${member.user.username}`);
 	  		}else{
 	  			console.log(`-- other passes no messages in channel - channel ${channel.name} user ${member.user.username}`);
-	  			return false;
+	  			result = false;
 	  		}
 		}
 	}catch(error){
-		console.error
+		console.log(error);
 	}
 	
 	//out point
@@ -234,22 +245,33 @@ async function checkChannelForUserLastMessage(member, channel, threshold, lastMe
 
 async function combChannels(member, guild, threshold){
 	console.log(`--- start combing channels for user ${member.user.username}`);
-	guild.channels.forEach((channel) => { //
-		console.log(`---+ ${channel.name} + ${channel.type}`);
-		if(channel.type === "text"){ //look only in text channels
-			console.log(`---+ is text`);
-			let result = await checkChannelForUserLastMessage(member, channel, threshold, null);
-			console.log(`---+ result for channel ${result} - channel ${channel.name} user ${member.user.username}`);
-			if(result === true){
-				//user is active
-				console.log(`---+--- user is active user ${member.user.username}`);
-				return true;
+	try{
+		await guild.channels.some(async (channel) => { //
+			console.log(`---+ ${channel.name} + ${channel.type}`);
+			if(channel.type === "text"){ //look only in text channels
+				
 			}
-		}
-	});
-	//not found in any channels during period of time: user is inactive
-	console.log(`---+--- not found user is inactive  user ${member.user.username}`);
-	return false;
+			await sleep(5000);
+		});
+		//not found in any channels during period of time: user is inactive
+		console.log(`---+--- not found user is inactive  user ${member.user.username}`);
+		return false;
+	}catch(error){
+		console.log(error);
+	}
+	
+}
+
+async function searchInChannel(channel, member, threshold){
+	console.log(`---+ ${channel.name} is text`);
+	let result = await checkChannelForUserLastMessage(member, channel, threshold, null);
+	await sleep(5000);
+	console.log(`---+ result for channel ${result} - channel ${channel.name} user ${member.user.username}`);
+	if(result === true){
+		//user is active
+		console.log(`---+--- user is active user ${member.user.username}`);
+		return true;
+	}
 }
 
 function assignRole(member, role){
@@ -280,4 +302,8 @@ function isMemberActive(threshold, lastMessageDate){
 	return true;
 }
 
-client.login('NjM5ODUwNzk5MzY2OTMwNDUy.Xbxe6A.8LnHWqfiWep8L4wvqQ29OE9Qj_8');
+const sleep = ms => {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+client.login('NjM5ODUwNzk5MzY2OTMwNDUy.XcLEYA.vTHKtwZM8MnN_SUnnjAnilgBI1E');
